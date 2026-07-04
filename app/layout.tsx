@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Snake Kid Game",
-  description: "A fun and friendly snake game for kids",
+  title: "Kids Portal",
+  description: "A fun and friendly gaming portal for kids",
   manifest: "/manifest.json",
 };
 

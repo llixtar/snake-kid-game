@@ -828,7 +828,9 @@ export default function GameContainer() {
                 livesRef.current += 1;
                 setLives(livesRef.current);
               }
+              bodyLength.current += 1; // Growing on heart too!
               audio.current?.playEat();
+              eatAnimationTimer.current = 15;
             } else {
               bodyLength.current += 1;
               audio.current?.playEat();

@@ -1,11 +1,11 @@
 {
-  "name": "Snake Game",
-  "short_name": "Snake",
+  "name": "Kids Portal",
+  "short_name": "KidsPortal",
   "start_url": "/",
-  "display": "fullscreen",
-  "orientation": "landscape",
-  "background_color": "#0f5132",
-  "theme_color": "#0f5132",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#3b82f6",
+  "theme_color": "#eab308",
   "icons": [
     {
       "src": "/icon-192.png",
