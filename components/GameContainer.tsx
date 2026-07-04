@@ -891,9 +891,9 @@ export default function GameContainer() {
           // Поведінка втечі, якщо змія близько (< 250px)
           if (dist < 250) {
             const fleeAngle = Math.atan2(prey.y - snakePos.current.y, prey.x - snakePos.current.x);
-            prey.angle = fleeAngle + (Math.random() - 0.5) * 0.4;
             
             if (prey.type === 'mouse') {
+              prey.angle = fleeAngle; // Рух без тремтіння
               prey.state = 'moving';
               prey.speed = 2.4; // Мишка біжить без упину, але повільніше ніж змійка (2.4 < 4.5)
             } else {
@@ -904,6 +904,7 @@ export default function GameContainer() {
                   prey.state = 'hopping';
                   prey.hopTime = 0.01; // Починаємо стрибок
                   prey.speed = 3.0; // Швидкість стрибка
+                  prey.angle = fleeAngle; // Стрибок без тремтіння
                 }
               }
             }
@@ -1047,16 +1048,8 @@ export default function GameContainer() {
           const cfg = fruitConfigs[fruit.type];
 
           ctx.save();
-          // Підсвічуємо фрукт ще сильніше, якщо він зараз потрібен по квесту
-          if (fruit.type === questRef.current.fruit) {
-             ctx.fillStyle = "rgba(255, 255, 255, 0.4)"; 
-             ctx.beginPath(); ctx.arc(fruitScreenX, fruitScreenY + fruitFloat, 45, 0, Math.PI * 2); ctx.fill();
-          }
-          
-          ctx.fillStyle = cfg.glow2; ctx.beginPath(); ctx.arc(fruitScreenX, fruitScreenY + fruitFloat, 35, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = cfg.glow1; ctx.beginPath(); ctx.arc(fruitScreenX, fruitScreenY + fruitFloat, 20, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1.0;
           ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(fruitScreenX, fruitScreenY + 20, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
           ctx.fillText(cfg.emoji, fruitScreenX, fruitScreenY + fruitFloat);
           ctx.restore();
         }
@@ -1069,6 +1062,7 @@ export default function GameContainer() {
 
         if (preyScreenX > -50 && preyScreenX < canvas.width + 50 && preyScreenY > -50 && preyScreenY < canvas.height + 50) {
           ctx.save();
+          ctx.globalAlpha = 1.0;
           ctx.translate(preyScreenX, preyScreenY);
           ctx.rotate(prey.angle + Math.PI / 2);
 
@@ -1323,9 +1317,9 @@ export default function GameContainer() {
       
       {/* HUD (Інтерфейс під час гри) */}
       <div className="absolute top-4 left-4 pointer-events-none">
-        <div className="bg-black/60 text-white font-bold px-5 py-3 rounded-full border-2 border-white/20 shadow-lg backdrop-blur-sm flex items-center gap-4">
-          <span className="text-4xl filter drop-shadow-md">{fruitConfigs[questUI.fruit].emoji}</span>
-          <span className="text-3xl font-black text-white tracking-widest">
+        <div className="bg-black/40 text-white font-bold px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full border border-white/20 shadow-lg backdrop-blur-sm flex items-center gap-1.5 sm:gap-3">
+          <span className="text-lg sm:text-2xl filter drop-shadow-md">{fruitConfigs[questUI.fruit].emoji}</span>
+          <span className="text-sm sm:text-lg font-black text-white tracking-widest">
             {questUI.progress} / <span className="text-yellow-400">{questUI.target}</span>
           </span>
         </div>
