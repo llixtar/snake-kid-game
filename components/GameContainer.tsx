@@ -13,13 +13,26 @@ interface BodyPart {
   angle: number;
 }
 
-type FruitType = "apple" | "banana" | "watermelon" | "cherry" | "grape" | "tomato" | "cucumber" | "poop";
+type FruitType = "apple" | "banana" | "watermelon" | "cherry" | "grape" | "tomato" | "cucumber" | "poop" | "heart";
 
 interface Fruit {
   id: number;
   x: number;
   y: number;
   type: FruitType;
+}
+
+interface Prey {
+  id: number;
+  x: number;
+  y: number;
+  type: 'mouse' | 'frog';
+  angle: number;
+  speed: number;
+  state: 'idle' | 'moving' | 'hopping';
+  stateTimer: number;
+  hopTime: number;
+  seed: number;
 }
 
 const CHUNK_SIZE = 300;
@@ -57,289 +70,336 @@ class GameAudio {
   init() {
     if (this.ctx) return;
     if (typeof window === "undefined") return;
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (AudioContextClass) {
-      this.ctx = new AudioContextClass();
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        this.ctx = new AudioContextClass();
+      }
+    } catch (e) {
+      console.warn("Failed to initialize AudioContext:", e);
+      this.ctx = null;
     }
   }
 
   private resume() {
-    this.init();
-    if (this.ctx && this.ctx.state === "suspended") {
-      this.ctx.resume();
+    try {
+      this.init();
+      if (this.ctx && this.ctx.state === "suspended") {
+        this.ctx.resume().catch((err) => {
+          console.warn("Failed to resume AudioContext:", err);
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to resume audio:", e);
     }
   }
 
   playStart() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    
-    const playNote = (freq: number, time: number, duration: number) => {
+    try {
+      this.resume();
       if (!this.ctx) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
       
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, time);
-      
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(0.15, time + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-      
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      
-      osc.start(time);
-      osc.stop(time + duration);
-    };
+      const playNote = (freq: number, time: number, duration: number) => {
+        try {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, time);
+          
+          gain.gain.setValueAtTime(0, time);
+          gain.gain.linearRampToValueAtTime(0.15, time + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+          
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          
+          osc.start(time);
+          osc.stop(time + duration);
+        } catch (err) {
+          console.warn("playNote error:", err);
+        }
+      };
 
-    playNote(523.25, now, 0.4); // C5
-    playNote(659.25, now + 0.1, 0.4); // E5
-    playNote(783.99, now + 0.2, 0.4); // G5
-    playNote(1046.50, now + 0.3, 0.6); // C6
+      playNote(523.25, now, 0.4); // C5
+      playNote(659.25, now + 0.1, 0.4); // E5
+      playNote(783.99, now + 0.2, 0.4); // G5
+      playNote(1046.50, now + 0.3, 0.6); // C6
+    } catch (e) {
+      console.warn("playStart error:", e);
+    }
   }
 
   playEat() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-
     try {
-      const bufferSize = this.ctx.sampleRate * 0.08;
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-      }
-      
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-      
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.setValueAtTime(1000, now);
-      filter.frequency.exponentialRampToValueAtTime(300, now + 0.08);
-      
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.15, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-      
-      noise.connect(filter);
-      filter.connect(noiseGain);
-      noiseGain.connect(this.ctx.destination);
-      noise.start(now);
-    } catch (e) {
-      // Fallback
-    }
+      this.resume();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
 
-    const osc = this.ctx.createOscillator();
-    const oscGain = this.ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(300, now);
-    osc.frequency.exponentialRampToValueAtTime(900, now + 0.12);
-    
-    oscGain.gain.setValueAtTime(0.2, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    
-    osc.connect(oscGain);
-    oscGain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.15);
+      try {
+        const bufferSize = this.ctx.sampleRate * 0.08;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(1000, now);
+        filter.frequency.exponentialRampToValueAtTime(300, now + 0.08);
+        
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.15, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(this.ctx.destination);
+        noise.start(now);
+      } catch (e) {
+        // Fallback
+      }
+
+      const osc = this.ctx.createOscillator();
+      const oscGain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.exponentialRampToValueAtTime(900, now + 0.12);
+      
+      oscGain.gain.setValueAtTime(0.2, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      
+      osc.connect(oscGain);
+      oscGain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.15);
+    } catch (e) {
+      console.warn("playEat error:", e);
+    }
   }
 
   playCrash() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
+    try {
+      this.resume();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
 
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(120, now);
-    osc.frequency.linearRampToValueAtTime(40, now + 0.25);
-    
-    const lp = this.ctx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.setValueAtTime(300, now);
-    lp.frequency.exponentialRampToValueAtTime(80, now + 0.25);
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.linearRampToValueAtTime(40, now + 0.25);
+      
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(300, now);
+      lp.frequency.exponentialRampToValueAtTime(80, now + 0.25);
 
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-    
-    osc.connect(lp);
-    lp.connect(gain);
-    gain.connect(this.ctx.destination);
-    
-    osc.start(now);
-    osc.stop(now + 0.3);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      
+      osc.connect(lp);
+      lp.connect(gain);
+      gain.connect(this.ctx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.3);
+    } catch (e) {
+      console.warn("playCrash error:", e);
+    }
   }
 
   playPoop() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    
     try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      const mod = this.ctx.createOscillator();
-      const modGain = this.ctx.createGain();
+      this.resume();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
       
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.linearRampToValueAtTime(70, now + 0.5); 
-      
-      mod.frequency.value = 18; 
-      modGain.gain.value = 50; 
-      
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(450, now);
-      filter.frequency.exponentialRampToValueAtTime(150, now + 0.5);
-      
-      gain.gain.setValueAtTime(0.28, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-      
-      mod.connect(modGain);
-      modGain.connect(osc.frequency);
-      
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
-      
-      mod.start(now);
-      osc.start(now);
-      
-      mod.stop(now + 0.5);
-      osc.stop(now + 0.5);
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const mod = this.ctx.createOscillator();
+        const modGain = this.ctx.createGain();
+        
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.linearRampToValueAtTime(70, now + 0.5); 
+        
+        mod.frequency.value = 18; 
+        modGain.gain.value = 50; 
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(450, now);
+        filter.frequency.exponentialRampToValueAtTime(150, now + 0.5);
+        
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        
+        mod.connect(modGain);
+        modGain.connect(osc.frequency);
+        
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        mod.start(now);
+        osc.start(now);
+        
+        mod.stop(now + 0.5);
+        osc.stop(now + 0.5);
+      } catch (e) {
+        // Fallback
+      }
     } catch (e) {
-      // Fallback
+      console.warn("playPoop error:", e);
     }
   }
 
   playVictory() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-
-    const playSynthNote = (freq: number, time: number, duration: number, type: OscillatorType = "triangle", vol = 0.15) => {
+    try {
+      this.resume();
       if (!this.ctx) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, time);
-      
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(vol, time + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-      
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      
-      osc.start(time);
-      osc.stop(time + duration);
-    };
+      const now = this.ctx.currentTime;
 
-    playSynthNote(261.63, now, 0.3);
-    playSynthNote(329.63, now + 0.15, 0.3);
-    playSynthNote(392.00, now + 0.3, 0.3);
-    playSynthNote(523.25, now + 0.45, 0.3);
-    playSynthNote(659.25, now + 0.6, 0.3);
-    playSynthNote(783.99, now + 0.75, 0.3);
-    
-    playSynthNote(523.25, now + 0.9, 1.2, "sine", 0.1);
-    playSynthNote(659.25, now + 0.9, 1.2, "sine", 0.1);
-    playSynthNote(783.99, now + 0.9, 1.2, "sine", 0.1);
-    playSynthNote(1046.50, now + 0.9, 1.5, "triangle", 0.1);
+      const playSynthNote = (freq: number, time: number, duration: number, type: OscillatorType = "triangle", vol = 0.15) => {
+        try {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, time);
+          
+          gain.gain.setValueAtTime(0, time);
+          gain.gain.linearRampToValueAtTime(vol, time + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+          
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          
+          osc.start(time);
+          osc.stop(time + duration);
+        } catch (err) {
+          console.warn("playSynthNote error:", err);
+        }
+      };
+
+      playSynthNote(261.63, now, 0.3);
+      playSynthNote(329.63, now + 0.15, 0.3);
+      playSynthNote(392.00, now + 0.3, 0.3);
+      playSynthNote(523.25, now + 0.45, 0.3);
+      playSynthNote(659.25, now + 0.6, 0.3);
+      playSynthNote(783.99, now + 0.75, 0.3);
+      
+      playSynthNote(523.25, now + 0.9, 1.2, "sine", 0.1);
+      playSynthNote(659.25, now + 0.9, 1.2, "sine", 0.1);
+      playSynthNote(783.99, now + 0.9, 1.2, "sine", 0.1);
+      playSynthNote(1046.50, now + 0.9, 1.5, "triangle", 0.1);
+    } catch (e) {
+      console.warn("playVictory error:", e);
+    }
   }
 
   playSlither() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    
-    if (Date.now() - this.lastSlitherTime < 220) return;
-    this.lastSlitherTime = Date.now();
-
     try {
-      const bufferSize = this.ctx.sampleRate * 0.06;
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
+      this.resume();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      
+      if (Date.now() - this.lastSlitherTime < 220) return;
+      this.lastSlitherTime = Date.now();
+
+      try {
+        const bufferSize = this.ctx.sampleRate * 0.06;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(400, now);
+        filter.frequency.exponentialRampToValueAtTime(1200, now + 0.06);
+        
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.012, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+        
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        noiseGain.connect(this.ctx.destination);
+        
+        noise.start(now);
+      } catch (e) {
+        // Fallback
       }
-      
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-      
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.setValueAtTime(400, now);
-      filter.frequency.exponentialRampToValueAtTime(1200, now + 0.06);
-      
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.012, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-      
-      noise.connect(filter);
-      filter.connect(noiseGain);
-      noiseGain.connect(this.ctx.destination);
-      
-      noise.start(now);
     } catch (e) {
-      // Fallback
+      console.warn("playSlither error:", e);
     }
   }
 
   playSplash() {
-    this.resume();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    
     try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
+      this.resume();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
       
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.setValueAtTime(800, now);
-      filter.frequency.exponentialRampToValueAtTime(1500, now + 0.15);
-      
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-      
-      // Also a quick noise pop
-      const bufferSize = this.ctx.sampleRate * 0.1;
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(800, now);
+        filter.frequency.exponentialRampToValueAtTime(1500, now + 0.15);
+        
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        
+        // Also a quick noise pop
+        const bufferSize = this.ctx.sampleRate * 0.1;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.06, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        noise.connect(filter);
+        noiseGain.connect(this.ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.15);
+        noise.start(now);
+      } catch (e) {
+        // Fallback
       }
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.06, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-      
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
-      
-      noise.connect(filter);
-      noiseGain.connect(this.ctx.destination);
-      
-      osc.start(now);
-      osc.stop(now + 0.15);
-      noise.start(now);
     } catch (e) {
-      // Fallback
+      console.warn("playSplash error:", e);
     }
   }
 }
@@ -350,18 +410,21 @@ export default function GameContainer() {
   const eatAnimationTimer = useRef<number>(0);
   
   // --- СТАНИ КВЕСТІВ ТА UI ---
-  const [uiState, setUiState] = useState<'START' | 'PLAYING' | 'VICTORY'>('START');
+  const [uiState, setUiState] = useState<'START' | 'PLAYING' | 'VICTORY' | 'GAMEOVER'>('START');
   const [questUI, setQuestUI] = useState({ fruit: 'apple' as FruitType, target: 5, progress: 0 });
+  const [lives, setLives] = useState(3);
   
-  const gameStateRef = useRef<'START' | 'PLAYING' | 'VICTORY'>('START');
+  const gameStateRef = useRef<'START' | 'PLAYING' | 'VICTORY' | 'GAMEOVER'>('START');
   const questRef = useRef({ fruit: 'apple' as FruitType, target: 5, progress: 0 });
   const prevQuestFruit = useRef<FruitType | null>(null);
+  const livesRef = useRef<number>(3);
+  const severedTails = useRef<{ parts: BodyPart[], timeCreated: number, initialLength: number }[]>([]);
 
   const snakePos = useRef<Position>({ x: 0, y: 0 });
   const direction = useRef<Position>({ x: 0, y: 0 });
   const currentAngle = useRef<number>(-Math.PI / 2);
   
-  const bodyLength = useRef<number>(14); 
+  const bodyLength = useRef<number>(1); 
   const snakeHistory = useRef<BodyPart[]>([]);
   const segmentSpacing = 5;
 
@@ -383,6 +446,10 @@ export default function GameContainer() {
 
   const isPressing = useRef<boolean>(false);
   const touchStart = useRef<Position>({ x: 0, y: 0 });
+  const selfBiteInvulnTimer = useRef<number>(0);
+
+  const preyList = useRef<Prey[]>([]);
+  const maxPrey = 4;
 
   const BASE_SPEED = 4.5;
 
@@ -394,7 +461,8 @@ export default function GameContainer() {
     grape: { emoji: "🍇", main: "#a855f7", dark: "#7e22ce", glow1: "rgba(168, 85, 247, 0.3)", glow2: "rgba(168, 85, 247, 0.1)" },
     tomato: { emoji: "🍅", main: "#f97316", dark: "#c2410c", glow1: "rgba(249, 115, 22, 0.3)", glow2: "rgba(249, 115, 22, 0.1)" },
     cucumber: { emoji: "🥒", main: "#22c55e", dark: "#15803d", glow1: "rgba(34, 197, 94, 0.3)", glow2: "rgba(34, 197, 94, 0.1)" },
-    poop: { emoji: "💩", main: "#854d0e", dark: "#422006", glow1: "rgba(133, 77, 14, 0.3)", glow2: "rgba(133, 77, 14, 0.1)" } 
+    poop: { emoji: "💩", main: "#854d0e", dark: "#422006", glow1: "rgba(133, 77, 14, 0.3)", glow2: "rgba(133, 77, 14, 0.1)" },
+    heart: { emoji: "❤️", main: "#ef4444", dark: "#b91c1c", glow1: "rgba(239, 68, 68, 0.3)", glow2: "rgba(239, 68, 68, 0.1)" }
   };
 
   // --- ЛОГІКА ГЕНЕРАЦІЇ КВЕСТУ ---
@@ -438,7 +506,9 @@ export default function GameContainer() {
     const regularTypes: FruitType[] = ["apple", "banana", "watermelon", "cherry", "grape", "tomato", "cucumber"];
     let randomType: FruitType;
     
-    if (Math.random() < 0.12) {
+    if (livesRef.current < 5 && Math.random() < 0.12) {
+      randomType = "heart";
+    } else if (Math.random() < 0.12) {
       randomType = "poop";
     } else {
       // Підігруємо малому: 35% шанс, що з'явиться саме той фрукт, який потрібен по квесту
@@ -491,6 +561,81 @@ export default function GameContainer() {
     return { id, x: newX, y: newY, type: randomType };
   };
 
+  const createSmartPrey = (id: number, existingPrey: Prey[], customRange?: number): Prey => {
+    const range = customRange || 1800;
+    let newX = 0, newY = 0;
+    let isValidPosition = false;
+    let attempts = 0;
+
+    while (!isValidPosition && attempts < 50) {
+      newX = snakePos.current.x + (Math.random() - 0.5) * range;
+      newY = snakePos.current.y + (Math.random() - 0.5) * range;
+      isValidPosition = true;
+
+      for (const p of existingPrey) {
+        if (p.id === id) continue;
+        const dx = p.x - newX;
+        const dy = p.y - newY;
+        if (Math.sqrt(dx * dx + dy * dy) < 200) {
+          isValidPosition = false; break;
+        }
+      }
+
+      if (isValidPosition) {
+        const col = Math.floor(newX / CHUNK_SIZE);
+        const row = Math.floor(newY / CHUNK_SIZE);
+        const envObj = getEnvironmentObject(col, row);
+        if (envObj && (envObj.type === 'stone' || envObj.type === 'stump')) {
+          isValidPosition = false;
+        }
+      }
+      attempts++;
+    }
+
+    return {
+      id,
+      x: newX,
+      y: newY,
+      type: Math.random() < 0.5 ? 'mouse' : 'frog',
+      angle: Math.random() * Math.PI * 2,
+      speed: 1.2 + Math.random() * 0.8,
+      state: 'idle',
+      stateTimer: Math.floor(Math.random() * 60) + 30,
+      hopTime: 0,
+      seed: Math.random()
+    };
+  };
+
+  const resetGame = () => {
+    livesRef.current = 3;
+    setLives(3);
+    bodyLength.current = 1;
+    snakePos.current = { x: 0, y: 0 };
+    snakeHistory.current = [];
+    for (let i = 0; i < 300; i++) {
+      snakeHistory.current.push({ x: 0, y: i * BASE_SPEED, angle: -Math.PI / 2 });
+    }
+    direction.current = { x: 0, y: 0 };
+    isPressing.current = false;
+    severedTails.current = [];
+    selfBiteInvulnTimer.current = 0;
+    
+    // Clear and regenerate fruits
+    fruits.current = [];
+    for (let i = 0; i < maxFruits; i++) {
+      fruits.current.push(createSmartFruit(i, fruits.current, i < 8 ? 800 : 2000));
+    }
+
+    // Clear and regenerate prey
+    preyList.current = [];
+    for (let i = 0; i < maxPrey; i++) {
+      preyList.current.push(createSmartPrey(i, preyList.current, 800));
+    }
+    
+    generateNewQuest();
+    startGame();
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -507,6 +652,12 @@ export default function GameContainer() {
     if (fruits.current.length === 0) {
       for (let i = 0; i < maxFruits; i++) {
         fruits.current.push(createSmartFruit(i, fruits.current, i < 8 ? 800 : 2000));
+      }
+    }
+
+    if (preyList.current.length === 0) {
+      for (let i = 0; i < maxPrey; i++) {
+        preyList.current.push(createSmartPrey(i, preyList.current, 800));
       }
     }
 
@@ -556,8 +707,22 @@ export default function GameContainer() {
               }
             }
 
-            const nextX = snakePos.current.x + direction.current.x * currentSpeed;
-            const nextY = snakePos.current.y + direction.current.y * currentSpeed;
+            // Smooth turning:
+            const targetAngle = Math.atan2(direction.current.y, direction.current.x);
+            let angleDiff = targetAngle - currentAngle.current;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            
+            // Limit rotation per frame to prevent instant 180s
+            const maxRotationSpeed = 0.12;
+            if (Math.abs(angleDiff) > maxRotationSpeed) {
+              currentAngle.current += Math.sign(angleDiff) * maxRotationSpeed;
+            } else {
+              currentAngle.current = targetAngle;
+            }
+
+            const nextX = snakePos.current.x + Math.cos(currentAngle.current) * currentSpeed;
+            const nextY = snakePos.current.y + Math.sin(currentAngle.current) * currentSpeed;
 
             const nextCol = Math.floor(nextX / CHUNK_SIZE);
             const nextRow = Math.floor(nextY / CHUNK_SIZE);
@@ -578,21 +743,69 @@ export default function GameContainer() {
 
             if (hitSolid) {
               stunTimer.current = 80; 
-              snakePos.current.x -= direction.current.x * 12;
-              snakePos.current.y -= direction.current.y * 12;
+              snakePos.current.x -= Math.cos(currentAngle.current) * 12;
+              snakePos.current.y -= Math.sin(currentAngle.current) * 12;
               direction.current = { x: 0, y: 0 };
               isPressing.current = false;
               audio.current?.playCrash();
             } else {
               snakePos.current.x = nextX;
               snakePos.current.y = nextY;
-              currentAngle.current = Math.atan2(direction.current.y, direction.current.x);
             }
           }
 
           snakeHistory.current.unshift({ x: snakePos.current.x, y: snakePos.current.y, angle: currentAngle.current });
           if (snakeHistory.current.length > bodyLength.current * segmentSpacing + 10) {
             snakeHistory.current.length = bodyLength.current * segmentSpacing + 10;
+          }
+          
+          if (selfBiteInvulnTimer.current > 0) {
+            selfBiteInvulnTimer.current--;
+          }
+          
+          if (stunTimer.current === 0 && isMoving && selfBiteInvulnTimer.current === 0) {
+            let selfBiteIndex = -1;
+            // Check self bite, skip first 65 points (~13 segments) to avoid neck overlaps on sharp turns
+            for (let i = 65; i < bodyLength.current * segmentSpacing; i++) {
+              const part = snakeHistory.current[i];
+              if (!part) break;
+              const dx = part.x - snakePos.current.x;
+              const dy = part.y - snakePos.current.y;
+              if (Math.sqrt(dx * dx + dy * dy) < 22) {
+                selfBiteIndex = i;
+                break;
+              }
+            }
+
+            if (selfBiteIndex !== -1) {
+              livesRef.current -= 1;
+              setLives(livesRef.current);
+              audio.current?.playCrash();
+              // No stun on self-bite, just slither forward like eating food!
+              selfBiteInvulnTimer.current = 100; // 1.6 seconds of invulnerability to avoid multi-bites
+              eatAnimationTimer.current = 15; // Make the head expand/grow!
+
+              const bittenBodyIndex = Math.floor(selfBiteIndex / segmentSpacing);
+              const severedParts = snakeHistory.current.slice(selfBiteIndex, bodyLength.current * segmentSpacing);
+              
+              if (severedParts.length > 0) {
+                severedTails.current.push({
+                  parts: severedParts,
+                  timeCreated: Date.now(),
+                  initialLength: bodyLength.current - bittenBodyIndex
+                });
+              }
+
+              bodyLength.current = Math.max(1, bittenBodyIndex);
+              snakeHistory.current.length = bodyLength.current * segmentSpacing + 10;
+
+              if (livesRef.current <= 0) {
+                gameStateRef.current = 'GAMEOVER';
+                setUiState('GAMEOVER');
+                direction.current = { x: 0, y: 0 };
+                isPressing.current = false;
+              }
+            }
           }
         }
 
@@ -604,6 +817,12 @@ export default function GameContainer() {
             if (fruit.type === "poop") {
               fogTimer.current = 300;
               audio.current?.playPoop();
+            } else if (fruit.type === "heart") {
+              if (livesRef.current < 5) {
+                livesRef.current += 1;
+                setLives(livesRef.current);
+              }
+              audio.current?.playEat();
             } else {
               bodyLength.current += 1;
               audio.current?.playEat();
@@ -616,13 +835,16 @@ export default function GameContainer() {
                 
                 // Якщо зібрали все!
                 if (questRef.current.progress >= questRef.current.target) {
-                  gameStateRef.current = 'VICTORY';
-                  setUiState('VICTORY');
-                  direction.current = { x: 0, y: 0 }; // Зупиняємо змію
-                  isPressing.current = false;
-                  audio.current?.playVictory();
+                   // Continue execution normally, handled below
                 }
               }
+            }
+            if (questRef.current.progress >= questRef.current.target && gameStateRef.current === 'PLAYING') {
+              gameStateRef.current = 'VICTORY';
+              setUiState('VICTORY');
+              direction.current = { x: 0, y: 0 }; // Зупиняємо змію
+              isPressing.current = false;
+              audio.current?.playVictory();
             }
             
             snakeColor.current = { main: fruitConfigs[fruit.type].main, dark: fruitConfigs[fruit.type].dark };
@@ -639,6 +861,96 @@ export default function GameContainer() {
           if (dx * dx + dy * dy > 2200 * 2200) {
             const regeneratedFruit = createSmartFruit(fruit.id, fruits.current, 1800);
             Object.assign(fruit, regeneratedFruit);
+          }
+        });
+
+        // --- ПОВЕДІНКА ТА ЗІТКНЕННЯ МИШЕЙ / ЖАБ ---
+        preyList.current.forEach((prey) => {
+          const dx = snakePos.current.x - prey.x;
+          const dy = snakePos.current.y - prey.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          // Зіткнення зі змією (поїдання)
+          if (dist < 45) {
+            bodyLength.current += 5; // Миші та жаби дають +5 до росту!
+            audio.current?.playEat();
+            eatAnimationTimer.current = 15;
+
+            // Регенеруємо здобич
+            const regeneratedPrey = createSmartPrey(prey.id, preyList.current, 1800);
+            Object.assign(prey, regeneratedPrey);
+            return;
+          }
+
+          // Поведінка втечі, якщо змія близько (< 250px)
+          if (dist < 250) {
+            const fleeAngle = Math.atan2(prey.y - snakePos.current.y, prey.x - snakePos.current.x);
+            prey.angle = fleeAngle + (Math.random() - 0.5) * 0.4;
+            
+            if (prey.type === 'mouse') {
+              prey.state = 'moving';
+              prey.speed = 2.4; // Мишка біжить без упину, але повільніше ніж змійка (2.4 < 4.5)
+            } else {
+              // Жабка тікає стрибками!
+              if (prey.state !== 'hopping') {
+                prey.stateTimer--;
+                if (prey.stateTimer <= 0) {
+                  prey.state = 'hopping';
+                  prey.hopTime = 0.01; // Починаємо стрибок
+                  prey.speed = 3.0; // Швидкість стрибка
+                }
+              }
+            }
+          } else {
+            // Звичайна випадкова поведінка
+            prey.stateTimer--;
+            if (prey.stateTimer <= 0) {
+              if (prey.type === 'mouse') {
+                prey.state = Math.random() < 0.4 ? 'idle' : 'moving';
+              } else {
+                prey.state = Math.random() < 0.7 ? 'idle' : 'hopping';
+              }
+              prey.stateTimer = Math.floor(Math.random() * 80) + 40;
+              prey.angle = Math.random() * Math.PI * 2;
+              prey.speed = 1.0 + Math.random() * 0.6;
+            }
+          }
+
+          // Рух відповідно до стану
+          if (prey.state === 'moving') {
+            prey.x += Math.cos(prey.angle) * prey.speed;
+            prey.y += Math.sin(prey.angle) * prey.speed;
+          } else if (prey.state === 'hopping') {
+            prey.hopTime += 0.10; // Стрибок триває близько 30 кадрів (0.5 сек)
+            if (prey.hopTime >= Math.PI) {
+              prey.hopTime = 0;
+              prey.state = 'idle';
+              // Після стрибка жабка трохи сидить на місці, що дає шанс її з'їсти!
+              prey.stateTimer = dist < 250 ? Math.floor(Math.random() * 20) + 20 : Math.floor(Math.random() * 60) + 30;
+            } else {
+              prey.x += Math.cos(prey.angle) * prey.speed * 1.5;
+              prey.y += Math.sin(prey.angle) * prey.speed * 1.5;
+            }
+          }
+
+          // Уникнення перешкод (камені/пеньки)
+          const col = Math.floor(prey.x / CHUNK_SIZE);
+          const row = Math.floor(prey.y / CHUNK_SIZE);
+          const envObj = getEnvironmentObject(col, row);
+          if (envObj && (envObj.type === 'stone' || envObj.type === 'stump')) {
+            const edx = envObj.x - prey.x;
+            const edy = envObj.y - prey.y;
+            if (Math.sqrt(edx * edx + edy * edy) < envObj.radius + 30) {
+              prey.angle += Math.PI;
+              prey.x += Math.cos(prey.angle) * 10;
+              prey.y += Math.sin(prey.angle) * 10;
+            }
+          }
+
+          // Якщо здобич побігла занадто далеко — телепортуємо її ближче до гравця
+          if (dist > 2200) {
+            const regeneratedPrey = createSmartPrey(prey.id, preyList.current, 1800);
+            Object.assign(prey, regeneratedPrey);
           }
         });
       }
@@ -740,6 +1052,83 @@ export default function GameContainer() {
           ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
           ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(fruitScreenX, fruitScreenY + 20, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
           ctx.fillText(cfg.emoji, fruitScreenX, fruitScreenY + fruitFloat);
+          ctx.restore();
+        }
+      });
+
+      // --- МАЛЮВАННЯ МИШЕЙ / ЖАБ ---
+      preyList.current.forEach((prey) => {
+        const preyScreenX = centerX + (prey.x - snakePos.current.x);
+        const preyScreenY = centerY + (prey.y - snakePos.current.y);
+
+        if (preyScreenX > -50 && preyScreenX < canvas.width + 50 && preyScreenY > -50 && preyScreenY < canvas.height + 50) {
+          ctx.save();
+          ctx.translate(preyScreenX, preyScreenY);
+          ctx.rotate(prey.angle + Math.PI / 2);
+
+          let drawY = 0;
+          let scaleX = 1.0;
+          let scaleY = 1.0;
+
+          if (prey.type === 'frog' && prey.hopTime > 0) {
+            const hopProgress = Math.sin(prey.hopTime);
+            drawY = -hopProgress * 25;
+            scaleX = 1.0 + hopProgress * 0.2;
+            scaleY = 1.0 - hopProgress * 0.1;
+          } else if (prey.type === 'mouse' && prey.state === 'moving') {
+            scaleX = 1.0 + Math.sin(animationTime.current * 2) * 0.08;
+            scaleY = 1.0 - Math.sin(animationTime.current * 2) * 0.08;
+          }
+
+          ctx.scale(scaleX, scaleY);
+          
+          ctx.fillStyle = "rgba(0,0,0,0.3)";
+          ctx.beginPath();
+          ctx.ellipse(0, drawY === 0 ? 15 : 15 - drawY * 0.2, drawY === 0 ? 12 : 12 * (1 - Math.abs(drawY) / 50), 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.font = "38px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          
+          const emoji = prey.type === 'mouse' ? '🐭' : '🐸';
+          ctx.fillText(emoji, 0, drawY);
+          ctx.restore();
+        }
+      });
+
+      // --- МАЛЮВАННЯ ВІДКУШЕНИХ ХВОСТІВ ---
+      const nowTime = Date.now();
+      severedTails.current = severedTails.current.filter(tail => nowTime - tail.timeCreated < 2500);
+      
+      severedTails.current.forEach(tail => {
+        const age = nowTime - tail.timeCreated;
+        const progress = Math.min(1, age / 2500);
+        const alpha = 1 - Math.pow(progress, 3);
+        const twitchBase = Math.sin(age * 0.05) * 8 * (1 - progress);
+        
+        for (let i = 0; i < tail.parts.length; i += segmentSpacing) {
+          const part = tail.parts[i];
+          if (!part) continue;
+          const bodyIndex = tail.initialLength - (i / segmentSpacing);
+
+          let screenX = centerX + (part.x - snakePos.current.x);
+          let screenY = centerY + (part.y - snakePos.current.y);
+          
+          screenX += Math.cos(part.angle + Math.PI / 2) * twitchBase;
+          screenY += Math.sin(part.angle + Math.PI / 2) * twitchBase;
+
+          const radius = 22 * Math.max(0.1, (1 - (bodyIndex / tail.initialLength) * 0.8));
+          ctx.save(); ctx.translate(screenX, screenY); ctx.rotate(part.angle);
+          
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = Math.floor(bodyIndex) % 2 === 0 ? snakeColor.current.main : snakeColor.current.dark;
+          ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+          
+          if (Math.floor(bodyIndex) % 2 === 0 && radius > 10) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.35 * alpha})`; ctx.beginPath();
+            ctx.moveTo(-radius * 0.4, 0); ctx.lineTo(0, -radius * 0.3); ctx.lineTo(radius * 0.4, 0); ctx.lineTo(0, radius * 0.3); ctx.fill();
+          }
           ctx.restore();
         }
       });
@@ -881,21 +1270,43 @@ export default function GameContainer() {
       if (gameStateRef.current === 'PLAYING' && stunTimer.current === 0) direction.current = { x: 0, y: 0 };
     };
 
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+      if (e.touches && e.touches[0]) {
+        startAction(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+      if (e.touches && e.touches[0]) {
+        moveAction(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+      endAction();
+    };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     canvas.addEventListener("mousedown", (e) => startAction(e.clientX, e.clientY));
     canvas.addEventListener("mousemove", (e) => moveAction(e.clientX, e.clientY));
     window.addEventListener("mouseup", endAction);
 
-    canvas.addEventListener("touchstart", (e) => startAction(e.touches[0].clientX, e.touches[0].clientY));
-    canvas.addEventListener("touchmove", (e) => moveAction(e.touches[0].clientX, e.touches[0].clientY));
-    canvas.addEventListener("touchend", endAction);
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd, { passive: false });
 
     return () => {
       window.removeEventListener("resize", resizeCanvas);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("mouseup", endAction);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
@@ -912,6 +1323,15 @@ export default function GameContainer() {
             {questUI.progress} / <span className="text-yellow-400">{questUI.target}</span>
           </span>
         </div>
+      </div>
+
+      {/* ЛАЙФБАР (Життя) */}
+      <div className="absolute top-4 right-4 pointer-events-none flex gap-1 bg-black/40 px-4 py-2 rounded-full border border-white/20 backdrop-blur-sm">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <span key={i} className={`text-4xl transition-all duration-300 ${i <= lives ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] scale-100 opacity-100' : 'grayscale opacity-30 scale-75'}`}>
+            ❤️
+          </span>
+        ))}
       </div>
 
       {/* OVERLAY: СТАРТ / НОВЕ ЗАВДАННЯ */}
@@ -957,6 +1377,22 @@ export default function GameContainer() {
               <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY: GAMEOVER */}
+      {uiState === 'GAMEOVER' && (
+        <div className="absolute inset-0 bg-red-900/80 backdrop-blur-md flex items-center justify-center z-50 animate-in zoom-in duration-300 pointer-events-auto">
+          <div className="bg-white rounded-[3rem] p-12 flex flex-col items-center gap-8 shadow-2xl">
+            <div className="text-9xl animate-bounce">😵</div>
+            <h2 className="text-5xl font-black text-red-600">ОЙ!</h2>
+            <button 
+              onClick={resetGame}
+              className="bg-red-500 text-white rounded-full p-6 shadow-[0_8px_0_rgb(185,28,28)] active:shadow-[0_0px_0_rgb(185,28,28)] active:translate-y-2 transition-all hover:bg-red-400 mt-4 text-3xl font-bold"
+            >
+              Спробувати ще
             </button>
           </div>
         </div>
