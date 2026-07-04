@@ -75,6 +75,191 @@ const CarIcon = ({ color }: { color: string }) => (
   </div>
 );
 
+// --- СИНТЕЗАТОР ЗВУКІВ (WEB AUDIO API) ---
+class SoundEffects {
+  private ctx: AudioContext | null = null;
+  private motorOsc: OscillatorNode | null = null;
+  private motorGain: GainNode | null = null;
+
+  init() {
+    if (this.ctx) return;
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioContextClass) {
+      this.ctx = new AudioContextClass();
+    }
+  }
+
+  // Запуск звуку мотора
+  startEngine() {
+    this.init();
+    if (!this.ctx) return;
+
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
+    try {
+      this.stopEngine();
+
+      this.motorOsc = this.ctx.createOscillator();
+      this.motorGain = this.ctx.createGain();
+
+      this.motorOsc.type = "sawtooth";
+      this.motorOsc.frequency.setValueAtTime(45, this.ctx.currentTime); // Низький гул мотора
+
+      this.motorGain.gain.setValueAtTime(0.04, this.ctx.currentTime); // Тихий фоновий звук
+
+      this.motorOsc.connect(this.motorGain);
+      this.motorGain.connect(this.ctx.destination);
+      this.motorOsc.start(0);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Зміна тональності мотора в залежності від швидкості/гальмування
+  updateEngine(multiplier: number, isBraking: boolean) {
+    if (!this.ctx || !this.motorOsc) return;
+
+    let targetFreq = 45 + (multiplier - 1) * 35; // Росте з прискоренням
+    if (isBraking) {
+      targetFreq = Math.max(30, targetFreq - 15); // Падає при гальмуванні
+    }
+
+    this.motorOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.1);
+  }
+
+  // Зупинка мотора
+  stopEngine() {
+    if (this.motorOsc) {
+      try {
+        this.motorOsc.stop();
+        this.motorOsc.disconnect();
+      } catch (e) {}
+      this.motorOsc = null;
+    }
+    if (this.motorGain) {
+      try {
+        this.motorGain.disconnect();
+      } catch (e) {}
+      this.motorGain = null;
+    }
+  }
+
+  // Постріл з кулемета
+  playLaser() {
+    this.init();
+    if (!this.ctx) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(700, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.12);
+
+    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.12);
+  }
+
+  // Підбір серця (Приємний дзвіночок)
+  playHeart() {
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(523.25, now); // C5
+    osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+    osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+    osc.frequency.setValueAtTime(1046.50, now + 0.24); // C6
+
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start();
+    osc.stop(now + 0.4);
+  }
+
+  // Зіткнення гравця (Аварія)
+  playCrash() {
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const bufferSize = this.ctx.sampleRate * 0.4;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(350, now);
+    filter.frequency.exponentialRampToValueAtTime(10, now + 0.4);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    noise.start();
+    noise.stop(now + 0.4);
+  }
+
+  // Знищення ворога кулею (Вибух авто)
+  playExplosion() {
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const bufferSize = this.ctx.sampleRate * 0.25;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(550, now);
+    filter.frequency.exponentialRampToValueAtTime(60, now + 0.25);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    noise.start();
+    noise.stop(now + 0.25);
+  }
+}
+
 export default function RacingGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -110,8 +295,19 @@ export default function RacingGame() {
   const itemSpawnTimer = useRef(150);
   const gunTimer = useRef(0);
   const invulnTimer = useRef(0); 
-  const crashTimer = useRef(0); // Мікро-стан зіткнення (крутіння/удар)
+  const crashTimer = useRef(0); 
   
+  // Звуковий рушій
+  const sfx = useRef<SoundEffects | null>(null);
+
+  // Ініціалізація звуків
+  useEffect(() => {
+    sfx.current = new SoundEffects();
+    return () => {
+      sfx.current?.stopEngine();
+    };
+  }, []);
+
   // Оновлюємо реф кольору при зміні стану
   useEffect(() => {
     colorRef.current = selectedColor;
@@ -141,9 +337,7 @@ export default function RacingGame() {
     // Зброя на машині (якщо активна)
     if (isPlayer && gunTimer.current > 0) {
       ctx.fillStyle = "#475569";
-      // Ліве дуло
       ctx.fillRect(-CAR_WIDTH/2 + 4, -CAR_HEIGHT/2 - 10, 6, 15);
-      // Праве дуло
       ctx.fillRect(CAR_WIDTH/2 - 10, -CAR_HEIGHT/2 - 10, 6, 15);
     }
 
@@ -151,10 +345,10 @@ export default function RacingGame() {
     if (isPlayer) {
       if (gunTimer.current > 0) {
         ctx.shadowBlur = 15;
-        ctx.shadowColor = "#f43f5e"; // Рожеве світіння зброї
+        ctx.shadowColor = "#f43f5e"; 
       } else if (invulnTimer.current > 0) {
         ctx.shadowBlur = 10;
-        ctx.shadowColor = "#3b82f6"; // Синє світіння щита
+        ctx.shadowColor = "#3b82f6"; 
       }
     }
 
@@ -164,7 +358,6 @@ export default function RacingGame() {
     ctx.roundRect(-CAR_WIDTH/2, -CAR_HEIGHT/2, CAR_WIDTH, CAR_HEIGHT, 12);
     ctx.fill();
 
-    // Вимикаємо тінь/світіння для подальших елементів
     ctx.shadowBlur = 0;
 
     // Бліки (Glassmorphism) на корпусі
@@ -250,6 +443,16 @@ export default function RacingGame() {
     const ch = canvasRef.current.height;
     playerPos.current = { x: cw / 2, y: ch - 100 };
     targetPos.current = { x: cw / 2, y: ch - 100 };
+
+    // Запускаємо звук мотора
+    sfx.current?.startEngine();
+  };
+
+  // Повернення до вибору кольору (екран START)
+  const resetToStartMenu = () => {
+    sfx.current?.stopEngine();
+    gameStateRef.current = 'START';
+    setUiState('START');
   };
 
   useEffect(() => {
@@ -278,10 +481,9 @@ export default function RacingGame() {
 
       // Логіка гри
       if (gameStateRef.current === 'PLAYING') {
-        // Рух машинки до targetPos (тільки якщо не в стані аварійного занесення/крутіння)
+        // Рух машинки до targetPos
         if (crashTimer.current > 0) {
           crashTimer.current--;
-          // Під час занесення машинку трясе і зносить трохи вниз/вбік
           playerPos.current.y += 2;
           playerPos.current.x += Math.sin(crashTimer.current * 0.5) * 4;
         } else {
@@ -300,11 +502,17 @@ export default function RacingGame() {
         if (playerPos.current.y < ch / 2) playerPos.current.y = ch / 2;
         if (playerPos.current.y > ch - 80) playerPos.current.y = ch - 80;
 
-        // Динамічна швидкість дороги (якщо занесення - швидкість падає)
+        // Визначаємо чи користувач гальмує (тягне назад)
+        const isBraking = targetPos.current.y > playerPos.current.y + 15;
+
+        // Динамічна швидкість дороги
         const crashSlowdown = crashTimer.current > 0 ? 0.2 : 1.0;
         const speedMultiplier = (1 + (ch - 80 - playerPos.current.y) / (ch / 2) * 1.5) * crashSlowdown;
         const currentRoadSpeed = baseSpeed.current * speedMultiplier;
         roadOffset.current += currentRoadSpeed;
+
+        // Оновлюємо звук двигуна
+        sfx.current?.updateEngine(speedMultiplier, isBraking);
 
         // Нараховуємо очки за рух
         if (animationTime.current % 10 === 0 && crashTimer.current === 0) {
@@ -316,7 +524,6 @@ export default function RacingGame() {
         if (invulnTimer.current > 0) invulnTimer.current--;
         if (gunTimer.current > 0) {
           gunTimer.current--;
-          // Стрільба автоматично (кожні 12 кадрів)
           if (gunTimer.current % 12 === 0) {
             bullets.current.push({
               x: playerPos.current.x - 12,
@@ -328,6 +535,8 @@ export default function RacingGame() {
               y: playerPos.current.y - CAR_HEIGHT / 2,
               speed: 12,
             });
+            // Звук пострілу
+            sfx.current?.playLaser();
           }
         }
 
@@ -336,7 +545,6 @@ export default function RacingGame() {
           const bullet = bullets.current[b];
           bullet.y -= bullet.speed;
 
-          // Зіткнення кулі з ворожими машинами
           let bulletHit = false;
           for (let i = enemies.current.length - 1; i >= 0; i--) {
             const enemy = enemies.current[i];
@@ -344,13 +552,14 @@ export default function RacingGame() {
             const distEBY = Math.abs(enemy.y - bullet.y);
 
             if (distEBX < CAR_WIDTH * 0.7 && distEBY < CAR_HEIGHT * 0.6) {
-              // Знищуємо ворога
               enemies.current.splice(i, 1);
               bulletHit = true;
-              scoreRef.current += 150; // Бонусні очки
+              scoreRef.current += 150;
               setScore(scoreRef.current);
 
-              // Створюємо іскри/вибух машини
+              // Звук вибуху ворога
+              sfx.current?.playExplosion();
+
               for (let p = 0; p < 12; p++) {
                 particles.current.push({
                   x: enemy.x,
@@ -393,17 +602,17 @@ export default function RacingGame() {
           spawnTimer.current = Math.max(35, 90 - scoreRef.current / 400);
         }
 
-        // Спавн предметів (сердечка та кулемети)
+        // Спавн предметів
         itemSpawnTimer.current--;
         if (itemSpawnTimer.current <= 0) {
           const lanes = 3;
           const laneWidth = ROAD_WIDTH / lanes;
           const lane = Math.floor(Math.random() * lanes);
           const ix = cw / 2 - ROAD_WIDTH / 2 + lane * laneWidth + laneWidth / 2;
-          const type = Math.random() < 0.45 ? 'heart' : 'gun'; // ~45% серце, ~55% кулемет
+          const type = Math.random() < 0.45 ? 'heart' : 'gun';
 
           items.current.push({ x: ix, y: -50, type });
-          itemSpawnTimer.current = 250 + Math.random() * 200; // Наступний спавн
+          itemSpawnTimer.current = 250 + Math.random() * 200;
         }
 
         // Рух та зіткнення предметів
@@ -411,7 +620,6 @@ export default function RacingGame() {
           const item = items.current[i];
           item.y += currentRoadSpeed;
 
-          // Зіткнення з гравцем
           const distX = Math.abs(item.x - playerPos.current.x);
           const distY = Math.abs(item.y - playerPos.current.y);
 
@@ -422,10 +630,12 @@ export default function RacingGame() {
                 setLives(livesRef.current);
               }
             } else if (item.type === 'gun') {
-              gunTimer.current = 360; // 6 секунд зброї
+              gunTimer.current = 360; 
             }
             
-            // Ефект підбору (іскри кольору предмета)
+            // Звук підбору
+            sfx.current?.playHeart();
+
             const particleColor = item.type === 'heart' ? '#ef4444' : '#ec4899';
             for (let p = 0; p < 8; p++) {
               particles.current.push({
@@ -453,35 +663,35 @@ export default function RacingGame() {
           const enemy = enemies.current[i];
           enemy.y += currentRoadSpeed + enemy.speed;
 
-          // Перевірка зіткнення з гравцем
           if (invulnTimer.current === 0 && crashTimer.current === 0) {
             const distX = Math.abs(enemy.x - playerPos.current.x);
             const distY = Math.abs(enemy.y - playerPos.current.y);
             
             if (distX < CAR_WIDTH * 0.85 && distY < CAR_HEIGHT * 0.85) {
-              // Аварія!
               livesRef.current -= 1;
               setLives(livesRef.current);
-              invulnTimer.current = 120; // 2 секунди невразливості
-              crashTimer.current = 45; // 0.75 секунди занесення/крутіння
+              invulnTimer.current = 120; 
+              crashTimer.current = 45; 
               
-              // Запускаємо вибухові іскри аварії
+              // Звук аварії
+              sfx.current?.playCrash();
+
               for (let p = 0; p < 15; p++) {
                 particles.current.push({
                   x: (enemy.x + playerPos.current.x)/2,
                   y: (enemy.y + playerPos.current.y)/2,
                   vx: (Math.random() - 0.5) * 10,
                   vy: (Math.random() - 0.5) * 10,
-                  color: "#f59e0b", // помаранчеві іскри вогню
+                  color: "#f59e0b",
                   life: 30,
                   maxLife: 30
                 });
               }
 
-              // Відкидаємо ціль назад
               targetPos.current.y = ch - 80;
 
               if (livesRef.current <= 0) {
+                sfx.current?.stopEngine();
                 gameStateRef.current = 'GAMEOVER';
                 setUiState('GAMEOVER');
               }
@@ -493,7 +703,7 @@ export default function RacingGame() {
           }
         }
 
-        // Оновлення частинок вибуху
+        // Оновлення частинок
         for (let p = particles.current.length - 1; p >= 0; p--) {
           const part = particles.current[p];
           part.x += part.vx;
@@ -556,7 +766,6 @@ export default function RacingGame() {
         ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
         ctx.fill();
         
-        // Маленький вогняний слід
         ctx.fillStyle = "rgba(253,224,71,0.4)";
         ctx.beginPath();
         ctx.arc(b.x, b.y + 8, 3, 0, Math.PI * 2);
@@ -703,22 +912,8 @@ export default function RacingGame() {
             <h2 className="text-4xl sm:text-6xl font-black text-red-600">АВАРІЯ!</h2>
             <div className="text-2xl font-bold text-slate-700">Очки: {score}</div>
             
-            {/* Швидкий вибір кольору перед повторною грою */}
-            <div className="flex gap-2 items-center bg-slate-100 p-2.5 rounded-2xl">
-              {CAR_COLORS.map(c => (
-                <button
-                  key={c.hex}
-                  onClick={() => setSelectedColor(c.hex)}
-                  className={`w-6 h-6 rounded-full border-2 transition-all ${
-                    selectedColor === c.hex ? 'border-slate-800 scale-110' : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                />
-              ))}
-            </div>
-
             <button 
-              onClick={startGame}
+              onClick={resetToStartMenu}
               className="bg-red-500 text-white rounded-full px-10 py-4 shadow-[0_6px_0_rgb(185,28,28)] active:shadow-[0_0px_0_rgb(185,28,28)] active:translate-y-2 transition-all hover:bg-red-400 mt-2 text-2xl font-bold"
             >
               Спробувати ще
