@@ -676,6 +676,12 @@ export default function GameContainer() {
       if (gameStateRef.current === 'PLAYING') {
         if (stunTimer.current > 0) {
           stunTimer.current--; 
+          // Дозволяємо гравцеві розвернути голову змійки під час оглушення,
+          // щоб після виходу з оглушення вона повзла туди, куди вказують, а не знову в перешкоду.
+          const isMoving = direction.current.x !== 0 || direction.current.y !== 0;
+          if (isMoving) {
+            currentAngle.current = Math.atan2(direction.current.y, direction.current.x);
+          }
         } else {
           const isMoving = direction.current.x !== 0 || direction.current.y !== 0;
           if (isMoving) {
@@ -742,9 +748,9 @@ export default function GameContainer() {
             }
 
             if (hitSolid) {
-              stunTimer.current = 80; 
-              snakePos.current.x -= Math.cos(currentAngle.current) * 12;
-              snakePos.current.y -= Math.sin(currentAngle.current) * 12;
+              stunTimer.current = 30; // 0.5s stun is much more player-friendly
+              snakePos.current.x -= Math.cos(currentAngle.current) * 28; // Push back significantly to clear collider
+              snakePos.current.y -= Math.sin(currentAngle.current) * 28;
               direction.current = { x: 0, y: 0 };
               isPressing.current = false;
               audio.current?.playCrash();
@@ -1326,9 +1332,9 @@ export default function GameContainer() {
       </div>
 
       {/* ЛАЙФБАР (Життя) */}
-      <div className="absolute top-4 right-4 pointer-events-none flex gap-1 bg-black/40 px-4 py-2 rounded-full border border-white/20 backdrop-blur-sm">
+      <div className="absolute top-4 right-4 pointer-events-none flex gap-0.5 sm:gap-1 bg-black/40 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full border border-white/20 backdrop-blur-sm">
         {[1, 2, 3, 4, 5].map((i) => (
-          <span key={i} className={`text-4xl transition-all duration-300 ${i <= lives ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] scale-100 opacity-100' : 'grayscale opacity-30 scale-75'}`}>
+          <span key={i} className={`text-lg sm:text-2xl transition-all duration-300 ${i <= lives ? 'filter drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] scale-100 opacity-100' : 'grayscale opacity-30 scale-75'}`}>
             ❤️
           </span>
         ))}
