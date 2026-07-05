@@ -42,6 +42,19 @@ export default function KidsPortal() {
           </div>
         </Link>
 
+        {/* Гра 3: Космос */}
+        <Link href="/space">
+          <div className="group flex flex-col items-center gap-3 cursor-pointer transform transition-all duration-300 hover:scale-110 active:scale-95">
+            <div className="w-28 h-28 sm:w-40 sm:h-40 bg-gradient-to-tr from-purple-500 to-indigo-700 rounded-[2rem] shadow-[0_10px_25px_rgba(168,85,247,0.5)] flex items-center justify-center border-[3px] border-white/30 group-hover:border-white/80 group-hover:shadow-[0_15px_35px_rgba(168,85,247,0.7)] relative overflow-hidden">
+              <span className="text-[4rem] sm:text-[6rem] filter drop-shadow-lg group-hover:animate-bounce">🚀</span>
+              <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/30 to-transparent rounded-t-[2rem]" />
+            </div>
+            <span className="text-xl sm:text-3xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] tracking-wide bg-black/20 px-5 py-1.5 rounded-full border border-white/10">
+              Космос
+            </span>
+          </div>
+        </Link>
+
       </div>
 
     </main>

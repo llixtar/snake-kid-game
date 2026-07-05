@@ -18,7 +18,7 @@ interface Car {
 interface Item {
   x: number;
   y: number;
-  type: "heart" | "gun";
+  type: "heart" | "gun" | "fuel" | "bulldozer";
 }
 
 interface Bullet {
@@ -264,17 +264,21 @@ export default function RacingGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Стани UI
-  const [uiState, setUiState] = useState<'START' | 'PLAYING' | 'GAMEOVER'>('START');
+  const [uiState, setUiState] = useState<'START' | 'COUNTDOWN' | 'PLAYING' | 'GAMEOVER'>('START');
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [selectedColor, setSelectedColor] = useState('#ef4444');
+  const [countdown, setCountdown] = useState(3);
+  const [fuel, setFuel] = useState(100);
   
   // Рефи для гри (щоб не рендерити компонент на кожен кадр)
   const gameStateRef = useRef<'START' | 'PLAYING' | 'GAMEOVER'>('START');
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
+  const fuelRef = useRef(100);
   const animationTime = useRef(0);
   const colorRef = useRef('#ef4444');
+  const isMoving = useRef(false);
   
   // Гравця машинка
   const playerPos = useRef({ x: 0, y: 0 }); 
@@ -294,6 +298,7 @@ export default function RacingGame() {
   const spawnTimer = useRef(0);
   const itemSpawnTimer = useRef(150);
   const gunTimer = useRef(0);
+  const bulldozerTimer = useRef(0);
   const invulnTimer = useRef(0); 
   const crashTimer = useRef(0); 
   
@@ -313,8 +318,27 @@ export default function RacingGame() {
     colorRef.current = selectedColor;
   }, [selectedColor]);
 
+  // Таймер відліку
+  useEffect(() => {
+    if (uiState === 'COUNTDOWN') {
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setUiState('PLAYING');
+            gameStateRef.current = 'PLAYING';
+            sfx.current?.startEngine();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [uiState]);
+
   // --- МАЛЮВАННЯ MAШИНКИ ---
-  const drawCar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, isPlayer: boolean, angle = 0) => {
+  const drawCar = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, isPlayer: boolean, angle = 0, isBulldozer = false) => {
     ctx.save();
     ctx.translate(x, y);
     if (angle !== 0) {
@@ -333,6 +357,19 @@ export default function RacingGame() {
     ctx.fillRect(CAR_WIDTH/2 - 4, -CAR_HEIGHT/2 + 15, 8, 20);
     ctx.fillRect(-CAR_WIDTH/2 - 4, CAR_HEIGHT/2 - 30, 8, 20);
     ctx.fillRect(CAR_WIDTH/2 - 4, CAR_HEIGHT/2 - 30, 8, 20);
+
+    // Ківш бульдозера
+    if (isBulldozer) {
+      ctx.fillStyle = "#eab308"; // Жовтий ківш
+      ctx.beginPath();
+      ctx.roundRect(-CAR_WIDTH/2 - 12, -CAR_HEIGHT/2 - 25, CAR_WIDTH + 24, 18, 4);
+      ctx.fill();
+      
+      // Кріплення ковша
+      ctx.fillStyle = "#475569";
+      ctx.fillRect(-CAR_WIDTH/2 - 6, -CAR_HEIGHT/2 - 10, 8, 25);
+      ctx.fillRect(CAR_WIDTH/2 - 2, -CAR_HEIGHT/2 - 10, 8, 25);
+    }
 
     // Зброя на машині (якщо активна)
     if (isPlayer && gunTimer.current > 0) {
@@ -425,27 +462,28 @@ export default function RacingGame() {
 
   const startGame = () => {
     if (!canvasRef.current) return;
-    setUiState('PLAYING');
-    gameStateRef.current = 'PLAYING';
+    setUiState('COUNTDOWN');
+    setCountdown(3);
     scoreRef.current = 0;
     setScore(0);
     livesRef.current = 3;
     setLives(3);
+    fuelRef.current = 100;
+    setFuel(100);
     enemies.current = [];
     items.current = [];
     bullets.current = [];
     particles.current = [];
     gunTimer.current = 0;
+    bulldozerTimer.current = 0;
     invulnTimer.current = 0;
     crashTimer.current = 0;
+    isMoving.current = false;
     
     const cw = canvasRef.current.width;
     const ch = canvasRef.current.height;
     playerPos.current = { x: cw / 2, y: ch - 100 };
     targetPos.current = { x: cw / 2, y: ch - 100 };
-
-    // Запускаємо звук мотора
-    sfx.current?.startEngine();
   };
 
   // Повернення до вибору кольору (екран START)
@@ -481,8 +519,26 @@ export default function RacingGame() {
 
       // Логіка гри
       if (gameStateRef.current === 'PLAYING') {
-        // Рух машинки до targetPos
-        if (crashTimer.current > 0) {
+        if (!isMoving.current) {
+          sfx.current?.updateEngine(0, true);
+          for (let p = particles.current.length - 1; p >= 0; p--) {
+            const part = particles.current[p];
+            part.x += part.vx;
+            part.y += part.vy;
+            part.life--;
+            if (part.life <= 0) particles.current.splice(p, 1);
+          }
+        } else {
+          fuelRef.current -= 0.03;
+          setFuel(Math.max(0, Math.floor(fuelRef.current)));
+          if (fuelRef.current <= 0) {
+            sfx.current?.stopEngine();
+            gameStateRef.current = 'GAMEOVER';
+            setUiState('GAMEOVER');
+          }
+
+          // Рух машинки до targetPos
+          if (crashTimer.current > 0) {
           crashTimer.current--;
           playerPos.current.y += 2;
           playerPos.current.x += Math.sin(crashTimer.current * 0.5) * 4;
@@ -522,6 +578,7 @@ export default function RacingGame() {
 
         // Таймери
         if (invulnTimer.current > 0) invulnTimer.current--;
+        if (bulldozerTimer.current > 0) bulldozerTimer.current--;
         if (gunTimer.current > 0) {
           gunTimer.current--;
           if (gunTimer.current % 12 === 0) {
@@ -599,20 +656,48 @@ export default function RacingGame() {
             lane
           });
 
-          spawnTimer.current = Math.max(35, 90 - scoreRef.current / 400);
+          if (bulldozerTimer.current > 120) {
+            spawnTimer.current = 15;
+          } else {
+            spawnTimer.current = Math.max(35, 90 - scoreRef.current / 400);
+          }
         }
 
         // Спавн предметів
         itemSpawnTimer.current--;
+        
+        // Перевіряємо, чи немає критичного рівня палива без каністри на дорозі
+        const hasFuelOnRoad = items.current.some(item => item.type === 'fuel');
+        if (fuelRef.current < 50 && !hasFuelOnRoad && itemSpawnTimer.current > 15) {
+          itemSpawnTimer.current = 15; // Прискорюємо появу каністри
+        }
+
         if (itemSpawnTimer.current <= 0) {
           const lanes = 3;
           const laneWidth = ROAD_WIDTH / lanes;
           const lane = Math.floor(Math.random() * lanes);
           const ix = cw / 2 - ROAD_WIDTH / 2 + lane * laneWidth + laneWidth / 2;
-          const type = Math.random() < 0.45 ? 'heart' : 'gun';
+          
+          let type: 'heart' | 'gun' | 'fuel' | 'bulldozer' = 'fuel';
+          const rand = Math.random();
+          
+          if (fuelRef.current < 50 && !hasFuelOnRoad) {
+             type = 'fuel'; // Гарантований спавн палива при критичному рівні
+          } else {
+             // Рандомний розподіл: 45% паливо, 25% зброя, 15% бульдозер, 15% серце (тільки якщо життів < 3)
+             if (rand < 0.15 && livesRef.current < 3) {
+                type = 'heart';
+             } else if (rand < 0.6) {
+                type = 'fuel';
+             } else if (rand < 0.85) {
+                type = 'gun';
+             } else {
+                type = 'bulldozer';
+             }
+          }
 
           items.current.push({ x: ix, y: -50, type });
-          itemSpawnTimer.current = 250 + Math.random() * 200;
+          itemSpawnTimer.current = 150 + Math.random() * 100;
         }
 
         // Рух та зіткнення предметів
@@ -631,12 +716,17 @@ export default function RacingGame() {
               }
             } else if (item.type === 'gun') {
               gunTimer.current = 360; 
+            } else if (item.type === 'fuel') {
+              fuelRef.current = Math.min(100, fuelRef.current + 40);
+              setFuel(fuelRef.current);
+            } else if (item.type === 'bulldozer') {
+              bulldozerTimer.current = 400; 
             }
             
             // Звук підбору
             sfx.current?.playHeart();
 
-            const particleColor = item.type === 'heart' ? '#ef4444' : '#ec4899';
+            const particleColor = item.type === 'heart' ? '#ef4444' : item.type === 'fuel' ? '#eab308' : item.type === 'bulldozer' ? '#f97316' : '#ec4899';
             for (let p = 0; p < 8; p++) {
               particles.current.push({
                 x: item.x,
@@ -663,11 +753,20 @@ export default function RacingGame() {
           const enemy = enemies.current[i];
           enemy.y += currentRoadSpeed + enemy.speed;
 
-          if (invulnTimer.current === 0 && crashTimer.current === 0) {
-            const distX = Math.abs(enemy.x - playerPos.current.x);
-            const distY = Math.abs(enemy.y - playerPos.current.y);
-            
-            if (distX < CAR_WIDTH * 0.85 && distY < CAR_HEIGHT * 0.85) {
+          const distX = Math.abs(enemy.x - playerPos.current.x);
+          const distY = Math.abs(enemy.y - playerPos.current.y);
+          
+          if (distX < CAR_WIDTH * 0.85 && distY < CAR_HEIGHT * 0.85) {
+            if (bulldozerTimer.current > 0) {
+              enemies.current.splice(i, 1);
+              scoreRef.current += 150;
+              setScore(scoreRef.current);
+              sfx.current?.playExplosion();
+              for (let p = 0; p < 15; p++) {
+                particles.current.push({ x: enemy.x, y: enemy.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, color: enemy.color, life: 30, maxLife: 30 });
+              }
+              continue;
+            } else if (invulnTimer.current === 0 && crashTimer.current === 0) {
               livesRef.current -= 1;
               setLives(livesRef.current);
               invulnTimer.current = 120; 
@@ -713,6 +812,7 @@ export default function RacingGame() {
             particles.current.splice(p, 1);
           }
         }
+        } // Close else branch for !isMoving.current
       }
 
       // --- МАЛЮВАННЯ ФОНУ ТА ДОРОГИ ---
@@ -755,7 +855,11 @@ export default function RacingGame() {
         ctx.font = "32px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(item.type === 'heart' ? '❤️' : '🔫', 0, floatY);
+        let icon = '❤️';
+        if (item.type === 'gun') icon = '🔫';
+        if (item.type === 'fuel') icon = '⛽';
+        if (item.type === 'bulldozer') icon = '🚜';
+        ctx.fillText(icon, 0, floatY);
         ctx.restore();
       });
 
@@ -775,14 +879,15 @@ export default function RacingGame() {
 
       // --- МАЛЮВАННЯ ВОРОГІВ ---
       enemies.current.forEach(e => {
-        drawCar(ctx, e.x, e.y, e.color, false);
+        drawCar(ctx, e.x, e.y, e.color, false, Math.PI);
       });
 
       // --- МАЛЮВАННЯ ГРАВЦЯ ---
-      if (gameStateRef.current !== 'START') {
+      if (gameStateRef.current !== 'START' && gameStateRef.current !== 'COUNTDOWN') {
         if (invulnTimer.current === 0 || Math.floor(animationTime.current / 8) % 2 === 0) {
           const spinAngle = crashTimer.current > 0 ? (crashTimer.current / 45) * Math.PI * 4 : 0;
-          drawCar(ctx, playerPos.current.x, playerPos.current.y, colorRef.current, true, spinAngle); 
+          const showBulldozer = bulldozerTimer.current > 0 && (bulldozerTimer.current > 120 || Math.floor(animationTime.current / 6) % 2 === 0);
+          drawCar(ctx, playerPos.current.x, playerPos.current.y, colorRef.current, true, spinAngle, showBulldozer); 
         }
       } else {
         drawCar(ctx, cw / 2, ch - 150, colorRef.current, true);
@@ -818,25 +923,35 @@ export default function RacingGame() {
     };
     const handleTouchStart = (e: TouchEvent) => {
       if (e.cancelable) e.preventDefault();
+      isMoving.current = true;
       if (e.touches && e.touches[0]) {
         updateTargetPos(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
+    const handleTouchEnd = () => { isMoving.current = false; };
 
     const handleMouseMove = (e: MouseEvent) => updateTargetPos(e.clientX, e.clientY);
-    const handleMouseDown = (e: MouseEvent) => updateTargetPos(e.clientX, e.clientY);
+    const handleMouseDown = (e: MouseEvent) => { isMoving.current = true; updateTargetPos(e.clientX, e.clientY); };
+    const handleMouseUp = () => { isMoving.current = false; };
+    const handleMouseLeave = () => { isMoving.current = false; };
 
     canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
     canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd);
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mousedown", handleMouseDown);
+    canvas.addEventListener("mouseup", handleMouseUp);
+    canvas.addEventListener("mouseleave", handleMouseLeave);
 
     return () => {
       window.removeEventListener("resize", resizeCanvas);
       canvas.removeEventListener("touchstart", handleTouchStart);
       canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mousedown", handleMouseDown);
+      canvas.removeEventListener("mouseup", handleMouseUp);
+      canvas.removeEventListener("mouseleave", handleMouseLeave);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
@@ -861,6 +976,34 @@ export default function RacingGame() {
           </span>
         ))}
       </div>
+
+      {/* FUEL BAR */}
+      {uiState !== 'START' && uiState !== 'GAMEOVER' && (
+        <div className="absolute right-4 bottom-4 flex flex-col items-center gap-2 pointer-events-none z-10">
+          <div className="w-6 h-48 sm:h-64 bg-black/40 rounded-full border border-white/20 p-1 flex flex-col justify-end backdrop-blur-sm overflow-hidden">
+            <div 
+              className="w-full rounded-full transition-all duration-300"
+              style={{ 
+                height: `${fuel}%`, 
+                backgroundColor: fuel > 50 ? '#22c55e' : fuel > 20 ? '#eab308' : '#ef4444',
+                boxShadow: fuel > 20 ? '0 0 10px currentColor' : 'none'
+              }}
+            />
+          </div>
+          <div className="bg-black/60 p-2 rounded-full border border-white/20 backdrop-blur-sm">
+            <span className="text-xl">⛽</span>
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY: COUNTDOWN */}
+      {uiState === 'COUNTDOWN' && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto">
+          <div className="text-[10rem] sm:text-[15rem] font-black text-white animate-ping drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]">
+            {countdown > 0 ? countdown : '🏁'}
+          </div>
+        </div>
+      )}
 
       {/* OVERLAY: СТАРТ */}
       {uiState === 'START' && (

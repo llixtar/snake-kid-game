@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 // Завантажуємо гру динамічно та вимикаємо SSR
-const RacingGame = dynamic(() => import("@/components/RacingGame"), {
+const SpaceGame = dynamic(() => import("@/components/SpaceGame"), {
   ssr: false,
 });
 
-export default function RacingPage() {
+export default function SpacePage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -17,12 +17,12 @@ export default function RacingPage() {
   }, []);
 
   if (!mounted) {
-    return <main className="fixed inset-0 bg-slate-900" />;
+    return <main className="fixed inset-0 bg-slate-950" />;
   }
 
   return (
-    <main className="fixed inset-0 bg-slate-900 flex items-center justify-center overflow-hidden select-none touch-none">
-      <RacingGame />
+    <main className="fixed inset-0 bg-slate-950 flex items-center justify-center overflow-hidden select-none touch-none">
+      <SpaceGame />
       
       {/* Кнопка "Додому" для повернення на робочий стіл порталу */}
       <div className="absolute bottom-4 left-4 z-[100] pointer-events-auto">
