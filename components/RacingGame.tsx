@@ -883,7 +883,7 @@ export default function RacingGame() {
       });
 
       // --- МАЛЮВАННЯ ГРАВЦЯ ---
-      if (gameStateRef.current !== 'START' && gameStateRef.current !== 'COUNTDOWN') {
+      if (gameStateRef.current !== 'START') {
         if (invulnTimer.current === 0 || Math.floor(animationTime.current / 8) % 2 === 0) {
           const spinAngle = crashTimer.current > 0 ? (crashTimer.current / 45) * Math.PI * 4 : 0;
           const showBulldozer = bulldozerTimer.current > 0 && (bulldozerTimer.current > 120 || Math.floor(animationTime.current / 6) % 2 === 0);

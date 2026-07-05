@@ -132,7 +132,7 @@ class SpaceAudio {
     } catch (e) {}
   }
 
-  playExplosion(type: "normal" | "boss" | "fast") {
+  playExplosion(type: "normal" | "boss" | "fast" | "bomb") {
     this.resume();
     if (!this.ctx) return;
     try {
